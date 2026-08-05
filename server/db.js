@@ -1,7 +1,10 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
-const dataDir = path.join(__dirname, 'data');
+const bundledDataDir = path.join(__dirname, 'data');
+const bundledDbPath = path.join(bundledDataDir, 'db.json');
+const dataDir = process.env.VERCEL ? path.join(os.tmpdir(), 'coldmovie-data') : bundledDataDir;
 const dbPath = path.join(dataDir, 'db.json');
 
 const initialDb = {
@@ -18,6 +21,11 @@ function ensureDb() {
     fs.mkdirSync(dataDir, { recursive: true });
   }
   if (!fs.existsSync(dbPath)) {
+    if (process.env.VERCEL && fs.existsSync(bundledDbPath)) {
+      fs.copyFileSync(bundledDbPath, dbPath);
+      return;
+    }
+
     fs.writeFileSync(dbPath, JSON.stringify(initialDb, null, 2));
   }
 }
