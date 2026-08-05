@@ -2187,6 +2187,7 @@ html[lang="ka"] h1 {
 @media (max-width: 640px) {
   .site-header {
     padding: 14px 16px;
+    height: 38px !important;
   }
 
   .header-actions {
@@ -4415,6 +4416,7 @@ app-home-page .slider-track {
     linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
     rgba(255, 255, 255, 0.035);
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  z-index: 9999;
 }
 
 .filter-panel-v2 .filter-control,
@@ -4490,7 +4492,7 @@ app-home-page .slider-track {
 
 .filter-menu {
   position: absolute;
-  z-index: 120;
+  z-index: 9999999999999;
   top: calc(100% + 8px);
   left: 0;
   right: 0;
@@ -9739,7 +9741,9 @@ body::before {
   }
 
   .mobile-only.nav-menu-toggle {
-    display: grid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .footer-main-row,
@@ -9762,6 +9766,7 @@ body::before {
 
   .nav-action-zone {
     gap: 6px;
+    transform: translatey(-55px) !important;
   }
 
   .nav-action-zone .icon-link {
@@ -11260,6 +11265,9 @@ html[data-theme="light"] .reply-comment-form textarea {
   .review-reply-form {
     grid-template-columns: 1fr;
   }
+  .fb-shortcuts {
+    display: none;
+  }
 }
 
 /* Light mode final contrast guard */
@@ -11578,6 +11586,9 @@ html[data-theme="light"] .filter-menu {
 
 html[data-theme="light"] .filter-menu button {
   color: #1f365d !important;
+  display: flex;
+  align-items: center;
+  jucstify-content: space-center;
 }
 
 html[data-theme="light"] .filter-menu button:hover,
