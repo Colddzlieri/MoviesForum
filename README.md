@@ -50,6 +50,47 @@ API: `http://localhost:3000/api/health`
 - Replace `server/data/db.json` with PostgreSQL/Supabase for real multi-user production.
 - Text recommendations are handled by the Angular app from live TMDB catalog signals.
 
+## Vercel Deployment
+
+Deploy the backend and frontend as two separate Vercel projects.
+
+### Backend project
+
+Use the `server` folder as the Vercel project root.
+
+Environment variables:
+
+```bash
+CLIENT_ORIGIN=https://your-frontend-project.vercel.app
+TMDB_READ_TOKEN=your_tmdb_read_access_token_here
+JWT_SECRET=replace-with-a-long-random-secret
+```
+
+After deployment, check:
+
+```bash
+https://your-backend-project.vercel.app/api/health
+```
+
+### Frontend project
+
+Use the repository root as the Vercel project root.
+
+Environment variables:
+
+```bash
+FRONTEND_API_BASE_URL=https://your-backend-project.vercel.app
+```
+
+Vercel build settings:
+
+```bash
+Build Command: npm run build
+Output Directory: dist/cineverse/browser
+```
+
+Local development still uses `/api` through `proxy.conf.json`; production requests are rewritten by the Angular interceptor to `FRONTEND_API_BASE_URL`.
+
 ## Build
 
 ```bash

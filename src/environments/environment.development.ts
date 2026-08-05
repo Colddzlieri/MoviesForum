@@ -1,5 +1,6 @@
 export const environment = {
   production: false,
+  apiBaseUrl: '',
   tmdbApiUrl: 'https://api.themoviedb.org/3',
   tmdbProxyUrl: '/api/tmdb',
   tmdbImageUrl: 'https://image.tmdb.org/t/p',

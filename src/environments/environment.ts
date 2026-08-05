@@ -1,5 +1,6 @@
 export const environment = {
-  production: false,
+  production: true,
+  apiBaseUrl: 'https://your-backend-project.vercel.app',
   tmdbApiUrl: 'https://api.themoviedb.org/3',
   tmdbProxyUrl: '/api/tmdb',
   tmdbImageUrl: 'https://image.tmdb.org/t/p',

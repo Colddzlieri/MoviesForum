@@ -9,7 +9,20 @@ const { tmdbFetch } = require('./tmdb');
 const app = express();
 const port = Number(process.env.PORT || 3000);
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:4200' }));
+const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:4200')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
+}));
 app.use(express.json({ limit: '12mb' }));
 
 app.get('/api/health', (_req, res) => {
