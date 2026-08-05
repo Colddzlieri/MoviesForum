@@ -694,6 +694,10 @@ app.use((error, _req, res, _next) => {
   res.status(status).json({ message: error.message || 'Server error.', details: error.payload });
 });
 
-app.listen(port, () => {
-  console.log(`ColdMovie API running on http://localhost:${port}`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
