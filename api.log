@@ -1,0 +1,6 @@
+
+> cineverse@0.0.0 api
+> node server/index.js
+
+◇ injected env (4) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+ColdMovie API running on http://localhost:3000
