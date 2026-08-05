@@ -107,6 +107,13 @@ import { ThemeService } from '../../core/services/theme.service';
           }
         </div>
       </div>
+
+      @if (searchOpen()) {
+        <form class="header-search nav-search-panel" (submit)="submitSearch($event)">
+          <input name="query" [(ngModel)]="query" placeholder="Search users" aria-label="User search" />
+          <button class="btn" type="submit">Search</button>
+        </form>
+      }
     </header>
   `,
 })

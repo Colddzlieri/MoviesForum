@@ -146,7 +146,6 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       '.hero-content',
       '.section-heading',
       '.movie-row',
-      '.filter-panel',
       '.search-bar',
       '.details-hero-inner',
       '.details-meta',

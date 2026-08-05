@@ -9599,6 +9599,43 @@ body::before {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.nav-action-zone .nav-search {
+  display: none !important;
+}
+
+.nav-search-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 12px;
+  z-index: 1200;
+  width: min(430px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(24, 119, 242, 0.18), transparent 16rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
+    rgba(15, 20, 30, 0.98);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(22px);
+}
+
+.nav-search-panel input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  border-radius: 999px;
+}
+
+.nav-search-panel .btn {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 999px !important;
+}
+
 .site-header.social-navbar .icon-btn,
 .site-header.social-navbar .icon-link,
 .site-header.social-navbar .profile-icon {
@@ -9779,6 +9816,13 @@ body::before {
   }
 
   .nav-center-pill.open {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-search-panel {
+    left: 8px;
+    right: 8px;
+    width: auto;
     grid-template-columns: 1fr;
   }
 }
@@ -10771,6 +10815,7 @@ html[data-theme="light"] .facebook-feed-page {
 }
 
 html[data-theme="light"] .site-header.social-navbar,
+html[data-theme="light"] .nav-search-panel,
 html[data-theme="light"] .social-footer.site-footer,
 html[data-theme="light"] .fb-card,
 html[data-theme="light"] .fb-rail-card,
@@ -10819,6 +10864,7 @@ html[data-theme="light"] .fb-media-search input,
 html[data-theme="light"] .fb-feed-toolbar input,
 html[data-theme="light"] .fb-comment-form input,
 html[data-theme="light"] .header-search input,
+html[data-theme="light"] .nav-search-panel input,
 html[data-theme="light"] .search-bar input,
 html[data-theme="light"] .review-form input,
 html[data-theme="light"] .review-form textarea,
@@ -11416,24 +11462,6 @@ html[data-theme="light"] .fb-selected-media button {
   border-color: rgba(24, 119, 242, 0.24) !important;
 }
 
-html[data-theme="light"] .fb-avatar,
-html[data-theme="light"] .composer-avatar,
-html[data-theme="light"] .post-author-avatar,
-html[data-theme="light"] .panel-avatar,
-html[data-theme="light"] .review-avatar,
-html[data-theme="light"] .profile-icon,
-html[data-theme="light"] .popover-avatar {
-  color: #ffffff !important;
-  background: linear-gradient(135deg, #1877f2, #0f4db8) !important;
-}
-
-html[data-theme="light"] .fb-avatar span,
-html[data-theme="light"] .review-avatar span,
-html[data-theme="light"] .profile-icon span,
-html[data-theme="light"] .popover-avatar span {
-  color: #ffffff !important;
-}
-
 html[data-theme="light"] .movie-card,
 html[data-theme="light"] .saved-card,
 html[data-theme="light"] .cast-card {
@@ -11934,4 +11962,135 @@ html[data-theme="light"] .user-result-stats span {
 html[data-theme="light"] .user-result-action {
   background: rgba(24, 119, 242, 0.1) !important;
   color: #0f5ed7 !important;
+}
+
+.catalog-pad,
+.catalog-pad .filter-panel-v2,
+.filter-grid-v2 {
+  overflow: visible !important;
+}
+
+.catalog-pad {
+  display: grid !important;
+  align-items: start !important;
+  gap: 18px !important;
+}
+
+.catalog-pad app-filter-panel {
+  display: block !important;
+  width: min(100%, 1480px) !important;
+  margin: 0 auto !important;
+}
+
+.catalog-pad .filter-panel-v2 {
+  position: relative !important;
+  z-index: auto !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.catalog-pad .catalog-results-bar,
+.catalog-pad .catalog-grid,
+.catalog-pad .pagination {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.catalog-pad .filter-panel-v2:has(.filter-menu) {
+  z-index: 40 !important;
+}
+
+.filter-grid-v2,
+.filter-control,
+.custom-select {
+  isolation: auto !important;
+}
+
+.catalog-pad .filter-panel-v2.scroll-reveal,
+.catalog-pad .filter-panel-v2.scroll-reveal.is-visible {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.catalog-pad .filter-control {
+  z-index: auto !important;
+}
+
+.custom-select:focus-within,
+.custom-select:has(.filter-menu) {
+  z-index: 1000000 !important;
+}
+
+.filter-menu {
+  z-index: 1000001 !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 620px) {
+  body {
+    font-size: 0.92rem;
+  }
+
+  h1,
+  .hero h1,
+  .details-copy h1,
+  .catalog-hero h1,
+  .page-hero.small h1,
+  .genres-hero h1,
+  .users-hero h1,
+  .public-profile-hero h1 {
+    font-size: 2rem !important;
+    line-height: 1.08;
+  }
+
+  h2,
+  .section-heading h2,
+  .fb-card-head h2,
+  .fb-feed-head h2,
+  .review-list-title h3 {
+    font-size: 1.25rem !important;
+    line-height: 1.2;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+    line-height: 1.25;
+  }
+
+  p,
+  .hero-content p,
+  .details-copy p,
+  .catalog-hero p,
+  .page-hero.small p,
+  .footer-bottom-row p,
+  .footer-bottom-row span {
+    font-size: 0.86rem !important;
+    line-height: 1.5;
+  }
+
+  .btn,
+  button,
+  input,
+  select,
+  textarea,
+  .movie-meta span,
+  .saved-card span,
+  .post-stats span,
+  .review-actions button,
+  .fb-action-bar button {
+    font-size: 0.82rem;
+  }
+
+  .social-footer .footer-nav,
+  .site-footer .footer-nav,
+  .nav-footer {
+    display: none !important;
+  }
+}
+.catalog-pad app-filter-panel,
+.catalog-pad .filter-panel,
+.catalog-pad .filter-panel-v2 {
+  position: static !important;
+  top: auto !important;
+  transform: none !important;
 }
