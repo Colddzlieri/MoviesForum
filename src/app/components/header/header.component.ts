@@ -34,6 +34,33 @@ import { ThemeService } from '../../core/services/theme.service';
           <span>▮</span>
           რილსები
         </a>
+        <div class="mobile-menu-actions">
+          <form class="mobile-menu-search" (submit)="submitSearch($event)">
+            <input name="mobileQuery" [(ngModel)]="query" placeholder="Search users" aria-label="User search" />
+            <button type="submit">âŒ•</button>
+          </form>
+
+          <button class="mobile-menu-action" type="button" (click)="theme.toggle()">
+            <span>{{ theme.isLight() ? '☾' : '☀' }}</span>
+            {{ theme.isLight() ? 'Dark mode' : 'Light mode' }}
+          </button>
+
+          @if (auth.currentUser(); as user) {
+            <button class="mobile-menu-action" type="button" (click)="goPublicProfile(user.id)">
+              <span>{{ initials(user.name) }}</span>
+              ჩემი გვერდი
+            </button>
+            <button class="mobile-menu-action" type="button" (click)="goProfile()">
+              <span>CM</span>
+              პროფილი
+            </button>
+          } @else {
+            <button class="mobile-menu-action" type="button" (click)="openAuth('login')">
+              <span>CM</span>
+              შესვლა
+            </button>
+          }
+        </div>
       </nav>
 
       <div class="header-actions nav-action-zone">
@@ -157,26 +184,31 @@ export class HeaderComponent {
 
   openAuth(mode: 'login' | 'register'): void {
     this.profileOpen.set(false);
+    this.menuOpen.set(false);
     this.auth.open(mode);
   }
 
   goProfile(): void {
     this.profileOpen.set(false);
+    this.menuOpen.set(false);
     void this.router.navigate(['/profile']);
   }
 
   goPublicProfile(userId: string): void {
     this.profileOpen.set(false);
+    this.menuOpen.set(false);
     void this.router.navigate(['/users', userId]);
   }
 
   goAdmin(): void {
     this.profileOpen.set(false);
+    this.menuOpen.set(false);
     void this.router.navigate(['/admin']);
   }
 
   logout(): void {
     this.profileOpen.set(false);
+    this.menuOpen.set(false);
     this.auth.logout();
   }
 
