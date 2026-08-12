@@ -47,7 +47,7 @@ API: `http://localhost:3000/api/health`
 ## Production Notes
 
 - Keep `.env` private. Never ship TMDB or JWT secrets in Angular files.
-- Replace `server/data/db.json` with PostgreSQL/Supabase for real multi-user production.
+- Set `DATABASE_URL` to a PostgreSQL connection string for real multi-user production. Without it, the API falls back to local `server/data/db.json`, which is not persistent on serverless hosts.
 - Text recommendations are handled by the Angular app from live TMDB catalog signals.
 
 ## Vercel Deployment
@@ -64,7 +64,10 @@ Environment variables:
 CLIENT_ORIGIN=https://your-frontend-project.vercel.app
 TMDB_READ_TOKEN=your_tmdb_read_access_token_here
 JWT_SECRET=replace-with-a-long-random-secret
+DATABASE_URL=postgres://user:password@host:5432/database
 ```
+
+On first boot with `DATABASE_URL`, the API creates a `coldmovie_state` table and seeds it from `server/data/db.json` if the database is empty.
 
 After deployment, check:
 

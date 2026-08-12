@@ -149,55 +149,65 @@ import { makeMediaKey } from '../../core/utils/media-key';
           </div>
 
           @if (data.posts.length) {
-            <div class="public-user-posts fb-user-posts">
+            <div class="fb-post-list fb-user-posts">
               @for (post of data.posts; track post.id) {
-                <article class="post-card product-post-card fb-profile-post">
-                  <header class="product-post-head">
-                    <a class="post-author-link" [routerLink]="['/users', post.author.id]">
-                      <span class="post-author-avatar">
+                <article class="fb-card fb-post-card">
+                  <header class="fb-post-header">
+                    <a class="fb-post-identity" [routerLink]="['/users', post.author.id]">
+                      <span class="fb-avatar">
                         @if (post.author.avatarUrl) {
                           <img [src]="post.author.avatarUrl" [alt]="post.author.name" />
                         } @else {
                           {{ initials(post.author.name) }}
                         }
                       </span>
-                      <span>
-                        <b>{{ post.author.name }}</b>
-                        <time>{{ post.createdAt | date: 'mediumDate' }}</time>
-                      </span>
+                      <div class="fb-post-author">
+                        <strong>{{ post.author.name }}</strong>
+                        <small>{{ post.createdAt | date: 'mediumDate' }}</small>
+                      </div>
                     </a>
                   </header>
 
-                  <h2><a [routerLink]="['/posts', post.id]">{{ post.title }}</a></h2>
-                  <p class="post-copy">{{ post.content }}</p>
+                  <div class="fb-post-body">
+                    <h2>{{ post.title }}</h2>
+                    <p>{{ post.content }}</p>
+                  </div>
 
                   @if (post.photoUrl) {
-                    <figure class="fb-post-photo public-post-photo">
+                    <figure class="fb-post-photo">
                       <img [src]="post.photoUrl" [alt]="post.photoName || post.title" loading="lazy" />
                     </figure>
                   }
 
                   @if (post.mediaItems.length) {
-                    <div class="post-media-strip product-media-strip fb-profile-media-strip">
+                    <div class="fb-post-tagged-titles" [class.single]="post.mediaItems.length === 1">
                       @for (item of post.mediaItems; track item.mediaType + '-' + item.id) {
-                        <a [routerLink]="['/movie', item.mediaType + '-' + item.id]">
+                        <a class="fb-tagged-title-card" [routerLink]="['/movie', item.mediaType + '-' + item.id]">
                           <img [src]="item.posterUrl" [alt]="item.title" />
-                          <span>{{ item.title }}</span>
-                          <small>{{ item.releaseYear || 'TBA' }}</small>
+                          <span>
+                            <b>{{ item.title }}</b>
+                            <small>{{ item.releaseYear || 'უცნობი წელი' }} · {{ item.mediaType === 'movie' ? 'ფილმი' : 'სერიალი' }} · ★ {{ item.rating || 'N/A' }}</small>
+                          </span>
+                          <i aria-hidden="true">›</i>
                         </a>
                       }
                     </div>
                   }
 
-                  <div class="post-stats product-post-stats fb-post-stats">
-                    <span>{{ post.viewCount }} ნახვა</span>
-                    <span>{{ post.likeCount }} მოწონება</span>
+                  <div class="fb-post-stats">
+                    <span>♥ {{ post.likeCount }} მოწონება</span>
                     <span>{{ post.commentCount }} კომენტარი</span>
                   </div>
 
-                  <div class="post-card-actions product-action-bar fb-post-actions">
-                    <a [routerLink]="['/posts', post.id]">პოსტის გახსნა</a>
-                    <a routerLink="/">ლენტაში ნახვა</a>
+                  <div class="fb-action-bar">
+                    <a [routerLink]="['/posts', post.id]">
+                      <span>□</span>
+                      პოსტის გახსნა
+                    </a>
+                    <a [routerLink]="['/posts', post.id]">
+                      <span>▱</span>
+                      კომენტარი
+                    </a>
                   </div>
                 </article>
               }

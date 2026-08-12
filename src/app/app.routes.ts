@@ -6,6 +6,7 @@ import { DetailsPageComponent } from './pages/details-page/details-page.componen
 import { HomePageComponent } from './pages/home-page/home-page.component';
 import { NotFoundPageComponent } from './pages/not-found-page/not-found-page.component';
 import { ProfileSettingsPageComponent } from './pages/profile-settings-page/profile-settings-page.component';
+import { ReelsPageComponent } from './pages/reels-page/reels-page.component';
 import { SearchPageComponent } from './pages/search-page/search-page.component';
 import { UserProfilePageComponent } from './pages/user-profile-page/user-profile-page.component';
 
@@ -17,6 +18,7 @@ export const routes: Routes = [
   { path: 'movie/:id', component: DetailsPageComponent, title: 'დეტალები | ColdMovie' },
   { path: 'favorites', component: CollectionPageComponent, data: { collection: 'favorites' }, title: 'ფავორიტები | ColdMovie' },
   { path: 'watchlist', component: CollectionPageComponent, data: { collection: 'watchlist' }, title: 'სანახავი | ColdMovie' },
+  { path: 'reels', component: ReelsPageComponent, title: 'Reels | ColdMovie' },
   { path: 'admin', component: AdminDashboardPageComponent, title: 'ადმინ პანელი | ColdMovie' },
   { path: 'profile', component: ProfileSettingsPageComponent, title: 'პროფილი | ColdMovie' },
   { path: 'users', redirectTo: '', pathMatch: 'full' },

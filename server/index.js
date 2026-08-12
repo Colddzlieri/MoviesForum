@@ -23,7 +23,7 @@ app.use(cors({
     return callback(new Error('Not allowed by CORS'));
   },
 }));
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '18mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, name: 'ColdMovie API' });
@@ -31,13 +31,13 @@ app.get('/api/health', (_req, res) => {
 
 registerAuthRoutes(app);
 
-function optionalAuth(req) {
+async function optionalAuth(req) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token) return null;
   try {
     const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-change-me');
-    return readDb().users.find((item) => item.id === decoded.sub) || null;
+    return (await readDb()).users.find((item) => item.id === decoded.sub) || null;
   } catch {
     return null;
   }
@@ -45,6 +45,17 @@ function optionalAuth(req) {
 
 function isAdminUser(user) {
   return user?.role === 'admin';
+}
+
+async function requirePostOwnerOrAdmin(req, res, next) {
+  const post = ((await readDb()).posts || []).find((item) => item.id === req.params.id);
+  if (!post) {
+    return res.status(404).json({ message: 'Post not found.' });
+  }
+  if (!isAdminUser(req.user) && post.author?.id !== req.user?.id) {
+    return res.status(403).json({ message: 'Only the post author can change this post.' });
+  }
+  return next();
 }
 
 function requirePostAdmin(req, res, next) {
@@ -119,6 +130,32 @@ function publicPost(post, viewerId = '') {
   };
 }
 
+function publicReel(reel, viewerId = '', options = {}) {
+  const likes = Array.isArray(reel.likes) ? reel.likes : [];
+  const comments = Array.isArray(reel.comments) ? reel.comments : [];
+  const payload = {
+    id: reel.id,
+    caption: reel.caption,
+    videoName: reel.videoName || '',
+    author: reel.author,
+    createdAt: reel.createdAt,
+    updatedAt: reel.updatedAt,
+    likeCount: likes.length,
+    likedByMe: viewerId ? likes.includes(viewerId) : false,
+    commentCount: comments.length,
+    comments: comments.map((comment) => ({
+      id: comment.id,
+      text: comment.text,
+      author: comment.author,
+      createdAt: comment.createdAt,
+    })),
+  };
+  if (options.includeVideo !== false) {
+    payload.videoUrl = reel.videoUrl;
+  }
+  return payload;
+}
+
 function publicReviewReply(reply, viewerId = '') {
   const reactions = Array.isArray(reply.reactions) ? reply.reactions : [];
   return {
@@ -189,6 +226,38 @@ function cleanUploadedPhoto(photoUrl, photoName = '') {
   return {
     photoUrl: value,
     photoName: safeName || 'post-photo',
+  };
+}
+
+function cleanUploadedVideo(videoUrl, videoName = '') {
+  const value = String(videoUrl || '').trim();
+  if (!value) {
+    const error = new Error('Choose a video file.');
+    error.status = 400;
+    throw error;
+  }
+
+  const supported = /^data:video\/(mp4|webm|ogg|quicktime);base64,[A-Za-z0-9+/=]+$/i.test(value);
+  if (!supported) {
+    const error = new Error('Choose a valid video file.');
+    error.status = 400;
+    throw error;
+  }
+
+  if (value.length > 14_000_000) {
+    const error = new Error('Uploaded video is too large.');
+    error.status = 413;
+    throw error;
+  }
+
+  const safeName = String(videoName || 'coldmovie-reel')
+    .replace(/[^\w.\- ]/g, '')
+    .trim()
+    .slice(0, 100);
+
+  return {
+    videoUrl: value,
+    videoName: safeName || 'coldmovie-reel',
   };
 }
 
@@ -274,19 +343,19 @@ function publicUserSummary(user, db) {
   };
 }
 
-app.get('/api/users', (_req, res) => {
-  const db = readDb();
+app.get('/api/users', async (_req, res) => {
+  const db = await readDb();
   const users = collectUsers(db).map((user) => publicUserSummary(user, db));
   res.json({ users });
 });
 
-app.get('/api/users/:id', (req, res) => {
-  const db = readDb();
+app.get('/api/users/:id', async (req, res) => {
+  const db = await readDb();
   const user = collectUsers(db).find((item) => item.id === req.params.id);
   if (!user) {
     return res.status(404).json({ message: 'მომხმარებელი ვერ მოიძებნა.' });
   }
-  const viewer = optionalAuth(req);
+  const viewer = await optionalAuth(req);
   const posts = [...(db.posts || [])]
     .filter((post) => post.author?.id === user.id)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -299,13 +368,13 @@ app.get('/api/users/:id', (req, res) => {
   });
 });
 
-app.get('/api/admin/users', requireAuth, requirePostAdmin, (_req, res) => {
-  res.json({ users: collectUsers(readDb()) });
+app.get('/api/admin/users', requireAuth, requirePostAdmin, async (_req, res) => {
+  res.json({ users: collectUsers(await readDb()) });
 });
 
-app.get('/api/admin/activities', requireAuth, requirePostAdmin, (req, res) => {
+app.get('/api/admin/activities', requireAuth, requirePostAdmin, async (req, res) => {
   const query = String(req.query.q || '').trim().toLowerCase();
-  const activities = (readDb().activities || []).filter((activity) => {
+  const activities = ((await readDb()).activities || []).filter((activity) => {
     if (!query) return true;
     return [
       activity.user?.name,
@@ -321,15 +390,15 @@ app.get('/api/admin/activities', requireAuth, requirePostAdmin, (req, res) => {
   res.json({ activities: activities.slice(0, 250) });
 });
 
-app.get('/api/posts', (req, res) => {
-  const viewer = optionalAuth(req);
-  const posts = [...(readDb().posts || [])]
+app.get('/api/posts', async (req, res) => {
+  const viewer = await optionalAuth(req);
+  const posts = [...((await readDb()).posts || [])]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .map((post) => publicPost(post, viewer?.id));
   res.json({ posts });
 });
 
-app.post('/api/posts', requireAuth, (req, res) => {
+app.post('/api/posts', requireAuth, async (req, res) => {
   const title = String(req.body.title || '').trim();
   const content = String(req.body.content || '').trim();
   const mediaItems = Array.isArray(req.body.mediaItems) ? req.body.mediaItems.map(cleanMediaItem).filter((item) => item.id && item.title) : [];
@@ -353,7 +422,7 @@ app.post('/api/posts', requireAuth, (req, res) => {
     updatedAt: new Date().toISOString(),
   };
 
-  updateDb((db) => {
+  await updateDb((db) => {
     db.posts = [post, ...(db.posts || [])];
     logActivity(db, req.user, 'post.created', { postId: post.id, postTitle: post.title, mediaCount: mediaItems.length, hasPhoto: Boolean(uploadedPhoto) });
   });
@@ -361,10 +430,10 @@ app.post('/api/posts', requireAuth, (req, res) => {
   return res.status(201).json({ post: publicPost(post, req.user.id) });
 });
 
-app.get('/api/posts/:id', (req, res) => {
-  const viewer = optionalAuth(req);
+app.get('/api/posts/:id', async (req, res) => {
+  const viewer = await optionalAuth(req);
   let found = null;
-  updateDb((db) => {
+  await updateDb((db) => {
     found = (db.posts || []).find((post) => post.id === req.params.id);
     if (found && req.query.track !== 'false') {
       found.viewCount = Number(found.viewCount || 0) + 1;
@@ -381,7 +450,7 @@ app.get('/api/posts/:id', (req, res) => {
   return res.json({ post: publicPost(found, viewer?.id) });
 });
 
-app.patch('/api/posts/:id', requireAuth, requirePostAdmin, (req, res) => {
+app.patch('/api/posts/:id', requireAuth, requirePostOwnerOrAdmin, async (req, res) => {
   const title = String(req.body.title || '').trim();
   const content = String(req.body.content || '').trim();
   const mediaItems = Array.isArray(req.body.mediaItems) ? req.body.mediaItems.map(cleanMediaItem).filter((item) => item.id && item.title) : [];
@@ -393,7 +462,7 @@ app.patch('/api/posts/:id', requireAuth, requirePostAdmin, (req, res) => {
     return res.status(400).json({ message: 'პოსტის ტექსტი სავალდებულოა.' });
   }
 
-  updateDb((db) => {
+  await updateDb((db) => {
     const post = (db.posts || []).find((item) => item.id === req.params.id);
     if (!post) return;
     post.title = title;
@@ -420,9 +489,9 @@ app.patch('/api/posts/:id', requireAuth, requirePostAdmin, (req, res) => {
   return res.json({ post: publicPost(updated, req.user.id) });
 });
 
-app.delete('/api/posts/:id', requireAuth, requirePostAdmin, (req, res) => {
+app.delete('/api/posts/:id', requireAuth, requirePostOwnerOrAdmin, async (req, res) => {
   let removed = false;
-  updateDb((db) => {
+  await updateDb((db) => {
     const post = (db.posts || []).find((item) => item.id === req.params.id);
     const before = (db.posts || []).length;
     db.posts = (db.posts || []).filter((post) => post.id !== req.params.id);
@@ -434,9 +503,9 @@ app.delete('/api/posts/:id', requireAuth, requirePostAdmin, (req, res) => {
   return removed ? res.json({ ok: true }) : res.status(404).json({ message: 'პოსტი ვერ მოიძებნა.' });
 });
 
-app.post('/api/posts/:id/like', requireAuth, (req, res) => {
+app.post('/api/posts/:id/like', requireAuth, async (req, res) => {
   let found = null;
-  updateDb((db) => {
+  await updateDb((db) => {
     found = (db.posts || []).find((post) => post.id === req.params.id);
     if (!found) return;
     found.likes = Array.isArray(found.likes) ? found.likes : [];
@@ -452,7 +521,7 @@ app.post('/api/posts/:id/like', requireAuth, (req, res) => {
   return res.json({ post: publicPost(found, req.user.id) });
 });
 
-app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
+app.post('/api/posts/:id/comments', requireAuth, async (req, res) => {
   const text = String(req.body.text || '').trim();
   let found = null;
   let comment = null;
@@ -461,7 +530,7 @@ app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
     return res.status(400).json({ message: 'კომენტარი ძალიან მოკლეა.' });
   }
 
-  updateDb((db) => {
+  await updateDb((db) => {
     found = (db.posts || []).find((post) => post.id === req.params.id);
     if (!found) return;
     comment = {
@@ -483,11 +552,11 @@ app.post('/api/posts/:id/comments', requireAuth, (req, res) => {
   return res.status(201).json({ post: publicPost(found, req.user.id), comment });
 });
 
-app.post('/api/posts/:id/comments/:commentId/react', requireAuth, (req, res) => {
+app.post('/api/posts/:id/comments/:commentId/react', requireAuth, async (req, res) => {
   let found = null;
   let comment = null;
 
-  updateDb((db) => {
+  await updateDb((db) => {
     found = (db.posts || []).find((post) => post.id === req.params.id);
     if (!found) return;
     comment = (Array.isArray(found.comments) ? found.comments : []).find((item) => item.id === req.params.commentId);
@@ -506,7 +575,7 @@ app.post('/api/posts/:id/comments/:commentId/react', requireAuth, (req, res) => 
   return res.json({ post: publicPost(found, req.user.id), comment: publicPostComment(comment, req.user.id) });
 });
 
-app.post('/api/posts/:id/comments/:commentId/replies', requireAuth, (req, res) => {
+app.post('/api/posts/:id/comments/:commentId/replies', requireAuth, async (req, res) => {
   const text = String(req.body.text || '').trim();
   let found = null;
   let comment = null;
@@ -516,7 +585,7 @@ app.post('/api/posts/:id/comments/:commentId/replies', requireAuth, (req, res) =
     return res.status(400).json({ message: 'პასუხი ძალიან მოკლეა.' });
   }
 
-  updateDb((db) => {
+  await updateDb((db) => {
     found = (db.posts || []).find((post) => post.id === req.params.id);
     if (!found) return;
     comment = (Array.isArray(found.comments) ? found.comments : []).find((item) => item.id === req.params.commentId);
@@ -542,12 +611,12 @@ app.post('/api/posts/:id/comments/:commentId/replies', requireAuth, (req, res) =
   return res.status(201).json({ post: publicPost(found, req.user.id), reply: publicPostReply(reply, req.user.id) });
 });
 
-app.post('/api/posts/:id/comments/:commentId/replies/:replyId/react', requireAuth, (req, res) => {
+app.post('/api/posts/:id/comments/:commentId/replies/:replyId/react', requireAuth, async (req, res) => {
   let found = null;
   let comment = null;
   let reply = null;
 
-  updateDb((db) => {
+  await updateDb((db) => {
     found = (db.posts || []).find((post) => post.id === req.params.id);
     if (!found) return;
     comment = (Array.isArray(found.comments) ? found.comments : []).find((item) => item.id === req.params.commentId);
@@ -568,6 +637,112 @@ app.post('/api/posts/:id/comments/:commentId/replies/:replyId/react', requireAut
   return res.json({ post: publicPost(found, req.user.id), reply: publicPostReply(reply, req.user.id) });
 });
 
+app.get('/api/reels', async (req, res) => {
+  const viewer = await optionalAuth(req);
+  const reels = [...((await readDb()).reels || [])]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map((reel) => publicReel(reel, viewer?.id, { includeVideo: false }));
+  res.json({ reels });
+});
+
+app.get('/api/reels/:id/video', async (req, res) => {
+  const reel = ((await readDb()).reels || []).find((item) => item.id === req.params.id);
+  if (!reel) {
+    return res.status(404).json({ message: 'Reel not found.' });
+  }
+  return res.json({ id: reel.id, videoUrl: reel.videoUrl });
+});
+
+app.post('/api/reels', requireAuth, async (req, res, next) => {
+  try {
+    const caption = String(req.body.caption || '').trim();
+    const uploadedVideo = cleanUploadedVideo(req.body.videoUrl, req.body.videoName);
+
+    if (caption.length > 180) {
+      return res.status(400).json({ message: 'Caption is too long.' });
+    }
+
+    const reel = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      caption,
+      ...uploadedVideo,
+      author: publicAuthor(req.user),
+      likes: [],
+      comments: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await updateDb((db) => {
+      db.reels = [reel, ...(Array.isArray(db.reels) ? db.reels : [])];
+      logActivity(db, req.user, 'reel.created', { reelId: reel.id, videoName: reel.videoName });
+    });
+
+    return res.status(201).json({ reel: publicReel(reel, req.user.id) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/reels/:id/like', requireAuth, async (req, res) => {
+  let found = null;
+  await updateDb((db) => {
+    found = (db.reels || []).find((reel) => reel.id === req.params.id);
+    if (!found) return;
+    found.likes = toggleUserReaction(found.likes, req.user.id);
+    logActivity(db, req.user, 'reel.liked', { reelId: found.id });
+  });
+
+  if (!found) {
+    return res.status(404).json({ message: 'Reel not found.' });
+  }
+
+  return res.json({ reel: publicReel(found, req.user.id, { includeVideo: false }) });
+});
+
+app.post('/api/reels/:id/comments', requireAuth, async (req, res) => {
+  const text = String(req.body.text || '').trim();
+  if (text.length < 1 || text.length > 260) {
+    return res.status(400).json({ message: 'Comment must be between 1 and 260 characters.' });
+  }
+
+  let found = null;
+  let comment = null;
+  await updateDb((db) => {
+    found = (db.reels || []).find((reel) => reel.id === req.params.id);
+    if (!found) return;
+    comment = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      text,
+      author: publicAuthor(req.user),
+      createdAt: new Date().toISOString(),
+    };
+    found.comments = [...(Array.isArray(found.comments) ? found.comments : []), comment];
+    found.updatedAt = new Date().toISOString();
+    logActivity(db, req.user, 'reel.commented', { reelId: found.id });
+  });
+
+  if (!found) {
+    return res.status(404).json({ message: 'Reel not found.' });
+  }
+
+  return res.status(201).json({ reel: publicReel(found, req.user.id, { includeVideo: false }), comment });
+});
+
+app.delete('/api/reels/:id', requireAuth, async (req, res) => {
+  let removed = false;
+  await updateDb((db) => {
+    const reel = (db.reels || []).find((item) => item.id === req.params.id);
+    if (!reel) return;
+    if (!isAdminUser(req.user) && reel.author?.id !== req.user.id) return;
+    db.reels = (db.reels || []).filter((item) => item.id !== req.params.id);
+    removed = true;
+    logActivity(db, req.user, 'reel.deleted', { reelId: req.params.id, videoName: reel.videoName });
+  });
+
+  return removed ? res.json({ ok: true }) : res.status(404).json({ message: 'Reel not found.' });
+});
+
 app.get('/api/tmdb/*path', async (req, res, next) => {
   try {
     const path = `/${Array.isArray(req.params.path) ? req.params.path.join('/') : req.params.path}`;
@@ -578,30 +753,30 @@ app.get('/api/tmdb/*path', async (req, res, next) => {
   }
 });
 
-app.get('/api/me/collections', requireAuth, (req, res) => {
-  const db = readDb();
+app.get('/api/me/collections', requireAuth, async (req, res) => {
+  const db = await readDb();
   res.json({
     favorites: db.favorites[req.user.id] || {},
     watchlist: db.watchlist[req.user.id] || {},
   });
 });
 
-app.put('/api/me/collections/:type', requireAuth, (req, res) => {
+app.put('/api/me/collections/:type', requireAuth, async (req, res) => {
   const type = req.params.type === 'watchlist' ? 'watchlist' : 'favorites';
   const value = req.body.items && typeof req.body.items === 'object' ? req.body.items : {};
-  updateDb((db) => {
+  await updateDb((db) => {
     db[type][req.user.id] = value;
   });
   res.json({ ok: true });
 });
 
-app.get('/api/reviews/:mediaKey', (req, res) => {
-  const viewer = optionalAuth(req);
-  const reviews = (readDb().reviews[req.params.mediaKey] || []).map((review) => publicReview(review, viewer?.id));
+app.get('/api/reviews/:mediaKey', async (req, res) => {
+  const viewer = await optionalAuth(req);
+  const reviews = ((await readDb()).reviews[req.params.mediaKey] || []).map((review) => publicReview(review, viewer?.id));
   res.json({ reviews });
 });
 
-app.post('/api/reviews/:mediaKey', requireAuth, (req, res) => {
+app.post('/api/reviews/:mediaKey', requireAuth, async (req, res) => {
   const review = {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     mediaKey: req.params.mediaKey,
@@ -614,15 +789,15 @@ app.post('/api/reviews/:mediaKey', requireAuth, (req, res) => {
     replies: [],
     createdAt: new Date().toISOString(),
   };
-  updateDb((db) => {
+  await updateDb((db) => {
     db.reviews[req.params.mediaKey] = [review, ...(db.reviews[req.params.mediaKey] || [])];
   });
   res.status(201).json({ review: publicReview(review, req.user.id) });
 });
 
-app.delete('/api/reviews/:mediaKey/:reviewId', requireAuth, (req, res) => {
+app.delete('/api/reviews/:mediaKey/:reviewId', requireAuth, async (req, res) => {
   let removed = false;
-  updateDb((db) => {
+  await updateDb((db) => {
     const reviews = db.reviews[req.params.mediaKey] || [];
     const review = reviews.find((item) => item.id === req.params.reviewId);
     if (!review) return;
@@ -634,9 +809,9 @@ app.delete('/api/reviews/:mediaKey/:reviewId', requireAuth, (req, res) => {
   return removed ? res.json({ ok: true }) : res.status(404).json({ message: 'კომენტარი ვერ მოიძებნა.' });
 });
 
-app.post('/api/reviews/:mediaKey/:reviewId/react', requireAuth, (req, res) => {
+app.post('/api/reviews/:mediaKey/:reviewId/react', requireAuth, async (req, res) => {
   let review = null;
-  updateDb((db) => {
+  await updateDb((db) => {
     review = (db.reviews[req.params.mediaKey] || []).find((item) => item.id === req.params.reviewId);
     if (!review) return;
     review.reactions = toggleUserReaction(review.reactions, req.user.id);
@@ -646,11 +821,11 @@ app.post('/api/reviews/:mediaKey/:reviewId/react', requireAuth, (req, res) => {
     return res.status(404).json({ message: 'კომენტარი ვერ მოიძებნა.' });
   }
 
-  const reviews = (readDb().reviews[req.params.mediaKey] || []).map((item) => publicReview(item, req.user.id));
+  const reviews = ((await readDb()).reviews[req.params.mediaKey] || []).map((item) => publicReview(item, req.user.id));
   return res.json({ reviews, review: publicReview(review, req.user.id) });
 });
 
-app.post('/api/reviews/:mediaKey/:reviewId/replies', requireAuth, (req, res) => {
+app.post('/api/reviews/:mediaKey/:reviewId/replies', requireAuth, async (req, res) => {
   const text = String(req.body.text || '').trim();
   let review = null;
   let reply = null;
@@ -659,7 +834,7 @@ app.post('/api/reviews/:mediaKey/:reviewId/replies', requireAuth, (req, res) => 
     return res.status(400).json({ message: 'პასუხი ძალიან მოკლეა.' });
   }
 
-  updateDb((db) => {
+  await updateDb((db) => {
     review = (db.reviews[req.params.mediaKey] || []).find((item) => item.id === req.params.reviewId);
     if (!review) return;
     reply = {
@@ -678,15 +853,15 @@ app.post('/api/reviews/:mediaKey/:reviewId/replies', requireAuth, (req, res) => 
     return res.status(404).json({ message: 'კომენტარი ვერ მოიძებნა.' });
   }
 
-  const reviews = (readDb().reviews[req.params.mediaKey] || []).map((item) => publicReview(item, req.user.id));
+  const reviews = ((await readDb()).reviews[req.params.mediaKey] || []).map((item) => publicReview(item, req.user.id));
   return res.status(201).json({ reviews, reply: publicReviewReply(reply, req.user.id) });
 });
 
-app.post('/api/reviews/:mediaKey/:reviewId/replies/:replyId/react', requireAuth, (req, res) => {
+app.post('/api/reviews/:mediaKey/:reviewId/replies/:replyId/react', requireAuth, async (req, res) => {
   let review = null;
   let reply = null;
 
-  updateDb((db) => {
+  await updateDb((db) => {
     review = (db.reviews[req.params.mediaKey] || []).find((item) => item.id === req.params.reviewId);
     if (!review) return;
     reply = (Array.isArray(review.replies) ? review.replies : []).find((item) => item.id === req.params.replyId);
@@ -698,7 +873,7 @@ app.post('/api/reviews/:mediaKey/:reviewId/replies/:replyId/react', requireAuth,
     return res.status(404).json({ message: 'პასუხი ვერ მოიძებნა.' });
   }
 
-  const reviews = (readDb().reviews[req.params.mediaKey] || []).map((item) => publicReview(item, req.user.id));
+  const reviews = ((await readDb()).reviews[req.params.mediaKey] || []).map((item) => publicReview(item, req.user.id));
   return res.json({ reviews, reply: publicReviewReply(reply, req.user.id) });
 });
 

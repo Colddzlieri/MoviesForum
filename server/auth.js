@@ -87,7 +87,7 @@ function syncEmbeddedUser(db, user) {
 
 async function ensureAdminUser() {
   const passwordHash = await bcrypt.hash('Cold', 10);
-  updateDb((db) => {
+  await updateDb((db) => {
     db.users = Array.isArray(db.users) ? db.users : [];
     const existing = db.users.find((user) => user.email === 'cold');
     if (existing) {
@@ -113,7 +113,7 @@ function signUser(user) {
   });
 }
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token) {
     return res.status(401).json({ message: 'ავტორიზაცია საჭიროა.' });
@@ -121,7 +121,7 @@ function requireAuth(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-change-me');
-    const user = readDb().users.find((item) => item.id === decoded.sub);
+    const user = (await readDb()).users.find((item) => item.id === decoded.sub);
     if (!user) {
       return res.status(401).json({ message: 'მომხმარებელი ვერ მოიძებნა.' });
     }
@@ -133,7 +133,9 @@ function requireAuth(req, res, next) {
 }
 
 function registerAuthRoutes(app) {
-  void ensureAdminUser();
+  void ensureAdminUser().catch((error) => {
+    console.error('Admin user setup failed:', error.message);
+  });
 
   app.post('/api/auth/register', async (req, res, next) => {
     try {
@@ -147,7 +149,7 @@ function registerAuthRoutes(app) {
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
-      const result = updateDb((db) => {
+      const result = await updateDb((db) => {
         db.users = Array.isArray(db.users) ? db.users : [];
         if (db.users.some((user) => user.email === email)) {
           return { duplicate: true };
@@ -179,7 +181,7 @@ function registerAuthRoutes(app) {
     try {
       const email = String(req.body.email || '').trim().toLowerCase();
       const password = String(req.body.password || '');
-      const user = readDb().users.find((item) => item.email === email);
+      const user = (await readDb()).users.find((item) => item.email === email);
       if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
         return res.status(401).json({ message: 'ელფოსტა ან პაროლი არასწორია.' });
       }
@@ -193,7 +195,7 @@ function registerAuthRoutes(app) {
     res.json({ user: publicUser(req.user) });
   });
 
-  app.patch('/api/auth/profile', requireAuth, (req, res, next) => {
+  app.patch('/api/auth/profile', requireAuth, async (req, res, next) => {
     try {
       const hasName = Object.prototype.hasOwnProperty.call(req.body, 'name');
       const hasEmail = Object.prototype.hasOwnProperty.call(req.body, 'email');
@@ -208,7 +210,7 @@ function registerAuthRoutes(app) {
         return res.status(400).json({ message: 'საჭიროა სწორი სახელი და ელფოსტა.' });
       }
 
-      const result = updateDb((db) => {
+      const result = await updateDb((db) => {
         db.users = Array.isArray(db.users) ? db.users : [];
         const user = db.users.find((item) => item.id === req.user.id);
         if (!user) {

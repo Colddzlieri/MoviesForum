@@ -30,6 +30,10 @@ import { ThemeService } from '../../core/services/theme.service';
           <span>TV</span>
           სერიალები
         </a>
+        <a routerLink="/reels" routerLinkActive="active">
+          <span>▮</span>
+          რილსები
+        </a>
       </nav>
 
       <div class="header-actions nav-action-zone">

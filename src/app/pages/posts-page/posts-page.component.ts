@@ -17,6 +17,16 @@ import { UsersService } from '../../core/services/users.service';
   imports: [DatePipe, FormsModule, RouterLink, EmptyStateComponent, LoadingSkeletonComponent],
   template: `
     <section class="posts-product-hero">
+      @if (saving()) {
+        <div class="publish-loading-overlay" role="status" aria-live="polite">
+          <div class="publish-loading-card">
+            <span class="publish-loader-mark" aria-hidden="true"></span>
+            <b>{{ text('იტვირთება', 'Publishing') }}</b>
+            <small>{{ text('პოსტი ქვეყნდება...', 'Your post is being published...') }}</small>
+          </div>
+        </div>
+      }
+
       <div class="posts-hero-copy">
         <span class="settings-kicker">{{ text('ColdMovie საზოგადოება', 'ColdMovie Community') }}</span>
         <h1>{{ text('კინოს მოყვარულების ცოცხალი feed', 'A Live Feed for Movie People') }}</h1>
@@ -275,6 +285,7 @@ export class PostsPageComponent implements OnInit {
   readonly posts = signal<MoviePost[]>([]);
   readonly users = signal<PublicUserSummary[]>([]);
   readonly loading = signal(true);
+  readonly saving = signal(false);
   readonly error = signal('');
   readonly movieResults = signal<MediaItem[]>([]);
   readonly selectedMedia = signal<SavedMediaItem[]>([]);
@@ -343,11 +354,13 @@ export class PostsPageComponent implements OnInit {
 
   createPost(): void {
     this.error.set('');
+    if (this.saving()) return;
     if (this.title.trim().length < 3 || this.content.trim().length < 10) {
       this.error.set(this.text('სათაური და მინიმუმ 10 სიმბოლოიანი ტექსტი საჭიროა.', 'Title and at least 10 characters of text are required.'));
       return;
     }
 
+    this.saving.set(true);
     this.postsService.create({ title: this.title, content: this.content, mediaItems: this.selectedMedia() }).subscribe({
       next: (post) => {
         this.posts.update((posts) => [post, ...posts]);
@@ -357,8 +370,12 @@ export class PostsPageComponent implements OnInit {
         this.movieResults.set([]);
         this.selectedMedia.set([]);
         this.usersService.list().subscribe((users) => this.users.set(users));
+        this.saving.set(false);
       },
-      error: (error) => this.error.set(error.error?.message || 'Post could not be saved.'),
+      error: (error) => {
+        this.error.set(error.error?.message || 'Post could not be saved.');
+        this.saving.set(false);
+      },
     });
   }
 

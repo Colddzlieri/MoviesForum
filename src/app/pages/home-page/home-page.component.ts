@@ -51,6 +51,7 @@ import { TmdbApiService } from '../../core/services/tmdb-api.service';
             <a routerLink="/" class="active"><span>⌂</span><b>ლენტი</b></a>
             <a routerLink="/movies"><span>▶</span><b>ფილმები</b></a>
             <a routerLink="/series"><span>TV</span><b>სერიალები</b></a>
+            <a routerLink="/reels"><span>▮</span><b>რილსები</b></a>
             <a routerLink="/favorites"><span>♥</span><b>ფავორიტები</b></a>
             <a routerLink="/watchlist"><span>＋</span><b>სანახავი</b></a>
           </nav>
@@ -76,7 +77,7 @@ import { TmdbApiService } from '../../core/services/tmdb-api.service';
             </div>
 
             @if (auth.isLoggedIn()) {
-              <form class="fb-composer-form" (ngSubmit)="createPost()">
+              <form class="fb-composer-form" (ngSubmit)="savePost()">
                 <label class="fb-title-field">
                   <span>სათაური</span>
                   <input id="composer-title-input" [(ngModel)]="postTitle" name="postTitle" maxlength="90" placeholder="დაწერე პოსტის სათაური..." />
@@ -178,13 +179,47 @@ import { TmdbApiService } from '../../core/services/tmdb-api.service';
                         <small>{{ formatDate(post.createdAt) }}</small>
                       </div>
                     </a>
-                    <button type="button" class="fb-post-menu" aria-label="პოსტის მენიუ">•••</button>
+                    @if (canManagePost(post)) {
+                      <div class="fb-post-menu-wrap">
+                        <button type="button" class="fb-post-menu" aria-label="პოსტის მენიუ" (click)="togglePostMenu(post.id, $event)">•••</button>
+                        @if (openPostMenuId() === post.id) {
+                          <div class="fb-post-dropdown">
+                            <button type="button" (click)="startEdit(post)">რედაქტირება</button>
+                            <button type="button" class="danger" (click)="deletePost(post)">წაშლა</button>
+                          </div>
+                        }
+                      </div>
+                    }
                   </header>
 
-                  <div class="fb-post-body">
-                    <h2>{{ post.title }}</h2>
-                    <p>{{ post.content }}</p>
-                  </div>
+                  @if (editingPostId() === post.id) {
+                    <form class="fb-inline-edit-form" (ngSubmit)="saveInlineEdit(post)">
+                      <input
+                        [(ngModel)]="editTitle"
+                        [name]="'edit-title-' + post.id"
+                        maxlength="90"
+                        placeholder="პოსტის სათაური"
+                      />
+                      <textarea
+                        [(ngModel)]="editContent"
+                        [name]="'edit-content-' + post.id"
+                        rows="4"
+                        placeholder="პოსტის ტექსტი"
+                      ></textarea>
+                      @if (editError()) {
+                        <p class="form-error">{{ editError() }}</p>
+                      }
+                      <div class="fb-inline-edit-actions">
+                        <button class="btn ghost" type="button" (click)="cancelEdit()">გაუქმება</button>
+                        <button class="btn" type="submit">შენახვა</button>
+                      </div>
+                    </form>
+                  } @else {
+                    <div class="fb-post-body">
+                      <h2>{{ post.title }}</h2>
+                      <p>{{ post.content }}</p>
+                    </div>
+                  }
 
                   @if (post.photoUrl) {
                     <figure class="fb-post-photo">
@@ -352,9 +387,14 @@ export class HomePageComponent implements OnInit {
   readonly replyDrafts = signal<Record<string, string>>({});
   readonly openReplyForms = signal<Record<string, boolean>>({});
   readonly likeAnimations = signal<Record<string, boolean>>({});
+  readonly openPostMenuId = signal<string | null>(null);
+  readonly editingPostId = signal<string | null>(null);
+  readonly editError = signal('');
 
   postBody = '';
   postTitle = '';
+  editTitle = '';
+  editContent = '';
   mediaQuery = '';
   feedQuery = '';
   private mediaSearchTimer: number | null = null;
@@ -391,7 +431,7 @@ export class HomePageComponent implements OnInit {
     );
   }
 
-  createPost(): void {
+  savePost(): void {
     this.error.set('');
     if (!this.auth.requireLogin()) {
       return;
@@ -404,26 +444,20 @@ export class HomePageComponent implements OnInit {
       return;
     }
 
-    this.postsService
-      .create({
-        title,
-        content,
-        photoUrl: this.uploadedPhoto()?.url ?? null,
-        photoName: this.uploadedPhoto()?.name ?? null,
-        mediaItems: this.selectedMedia(),
-      })
-      .subscribe({
-        next: (post) => {
-          this.posts.update((posts) => [post, ...posts]);
-          this.postTitle = '';
-          this.postBody = '';
-          this.mediaQuery = '';
-          this.mediaResults.set([]);
-          this.selectedMedia.set([]);
-          this.uploadedPhoto.set(null);
-        },
-        error: (error) => this.error.set(error.error?.message || 'პოსტის შენახვა ვერ მოხერხდა.'),
-      });
+    const payload = {
+      title,
+      content,
+      photoUrl: this.uploadedPhoto()?.url ?? null,
+      photoName: this.uploadedPhoto()?.name ?? null,
+      mediaItems: this.selectedMedia(),
+    };
+    this.postsService.create(payload).subscribe({
+      next: (post) => {
+        this.posts.update((posts) => [post, ...posts]);
+        this.resetComposer();
+      },
+      error: (error) => this.error.set(error.error?.message || 'Post could not be saved.'),
+    });
   }
 
   searchMedia(): void {
@@ -505,6 +539,82 @@ export class HomePageComponent implements OnInit {
 
   removePostPhoto(): void {
     this.uploadedPhoto.set(null);
+  }
+
+  canManagePost(post: MoviePost): boolean {
+    const user = this.auth.currentUser();
+    return Boolean(user && (user.id === post.author.id || user.role === 'admin'));
+  }
+
+  togglePostMenu(postId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.openPostMenuId.update((activeId) => (activeId === postId ? null : postId));
+  }
+
+  startEdit(post: MoviePost): void {
+    if (!this.canManagePost(post)) {
+      return;
+    }
+
+    this.editingPostId.set(post.id);
+    this.openPostMenuId.set(null);
+    this.editError.set('');
+    this.editTitle = post.title;
+    this.editContent = post.content;
+  }
+
+  cancelEdit(): void {
+    this.resetInlineEdit();
+  }
+
+  saveInlineEdit(post: MoviePost): void {
+    if (!this.canManagePost(post)) {
+      return;
+    }
+
+    const title = this.editTitle.trim();
+    const content = this.editContent.trim();
+    if (title.length < 3 || content.length < 10) {
+      this.editError.set('სათაური და მინიმუმ 10 სიმბოლოიანი ტექსტი საჭიროა.');
+      return;
+    }
+
+    this.postsService
+      .update(post.id, {
+        title,
+        content,
+        photoUrl: post.photoUrl || null,
+        photoName: post.photoName || null,
+        mediaItems: post.mediaItems,
+      })
+      .subscribe({
+        next: (updated) => {
+          this.replacePost(updated);
+          this.resetInlineEdit();
+        },
+        error: (error) => this.editError.set(error.error?.message || 'Post could not be saved.'),
+      });
+  }
+
+  deletePost(post: MoviePost): void {
+    if (!this.canManagePost(post)) {
+      return;
+    }
+
+    this.openPostMenuId.set(null);
+    if (!window.confirm('წავშალო ეს პოსტი?')) {
+      return;
+    }
+
+    this.postsService.remove(post.id).subscribe({
+      next: () => {
+        this.posts.update((posts) => posts.filter((item) => item.id !== post.id));
+        if (this.editingPostId() === post.id) {
+          this.resetInlineEdit();
+        }
+      },
+      error: (error) => this.error.set(error.error?.message || 'Post could not be deleted.'),
+    });
   }
 
   toggleLike(post: MoviePost): void {
@@ -651,6 +761,22 @@ export class HomePageComponent implements OnInit {
         .map((part) => part[0]?.toUpperCase())
         .join('') || 'CM'
     );
+  }
+
+  private resetComposer(): void {
+    this.postTitle = '';
+    this.postBody = '';
+    this.mediaQuery = '';
+    this.mediaResults.set([]);
+    this.selectedMedia.set([]);
+    this.uploadedPhoto.set(null);
+  }
+
+  private resetInlineEdit(): void {
+    this.editingPostId.set(null);
+    this.editTitle = '';
+    this.editContent = '';
+    this.editError.set('');
   }
 
   private loadPosts(): void {
